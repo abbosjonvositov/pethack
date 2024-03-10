@@ -87,39 +87,39 @@ class VerifyEmailAPIView(APIView):
         }
     )
     def post(self, request):
-        # try:
-        serializer = EmailVerificationSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data['email']
-        code = serializer.validated_data['code']
+        try:
+            serializer = EmailVerificationSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            email = serializer.validated_data['email']
+            code = serializer.validated_data['code']
 
-        # Retrieve verification code, username, and password from cache
-        cached_data = cache.get(email)
+            # Retrieve verification code, username, and password from cache
+            cached_data = cache.get(email)
 
-        # Check if the cached data exists and the code matches
-        if cached_data and cached_data['code'] == code:
-            # Create the user if email verification is successful
-            user = User.objects.create_user(username=cached_data['username'], email=email,
-                                            password=cached_data['password'])
+            # Check if the cached data exists and the code matches
+            if cached_data and cached_data['code'] == code:
+                # Create the user if email verification is successful
+                user = User.objects.create_user(username=cached_data['username'], email=email,
+                                                password=cached_data['password'])
+                username = user.username
+                # Remove verification code from cache
+                cache.delete(email)
 
-            # Remove verification code from cache
-            cache.delete(email)
+                # Add entry to EmailVerification model
+                EmailVerification.objects.create(user=user, code=code, verified=True)
 
-            # Add entry to EmailVerification model
-            EmailVerification.objects.create(user=user, code=code, verified=True)
+                # Generate or get token
+                token, created = Token.objects.get_or_create(user=user)
 
-            # Generate or get token
-            token, created = Token.objects.get_or_create(user=user)
+                return Response({'detail': 'Email verified successfully.', 'token': token.key, 'username': username},
+                                status=status.HTTP_200_OK)
+            else:
+                return Response({'detail': 'Invalid verification code.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            return Response({'detail': 'Email verified successfully.', 'token': token.key},
-                            status=status.HTTP_200_OK)
-        else:
-            return Response({'detail': 'Invalid verification code.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    # except Exception as e:
-    #     print(e)
-    #     return Response({'detail': 'An error occurred while processing your request.'},
-    #                     status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            print(e)
+            return Response({'detail': 'An error occurred while processing your request.'},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class LoginAPIView(APIView):
