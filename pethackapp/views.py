@@ -44,6 +44,10 @@ class SignupAPIView(APIView):
             validate_email(email)
             validate_password(password)
 
+            # Check if the email already exists
+            if User.objects.filter(email=email).exists():
+                return Response({'detail': 'Email already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
             # Generate verification code
             code = ''.join([str(random.randint(0, 9)) for _ in range(4)])
 
