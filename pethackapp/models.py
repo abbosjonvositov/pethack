@@ -7,5 +7,5 @@ from rest_framework.authtoken.models import Token
 # Create your models here.
 class EmailVerification(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    code = models.CharField(max_length=5)
+    code = models.CharField(max_length=4)
     verified = models.BooleanField(default=False)

@@ -1,7 +1,7 @@
 # views.py
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login, logout
 from django.core.mail import send_mail
 from rest_framework.authentication import SessionAuthentication, TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
@@ -27,8 +27,8 @@ class SignupAPIView(APIView):
         # Create user
         user = User.objects.create_user(username=username, email=email, password=password)
 
-        # Generate a random verification code with 5 digits
-        code = ''.join([str(random.randint(0, 9)) for _ in range(5)])  # Example code generation
+        # Generate a random verification code with 4 digits
+        code = ''.join([str(random.randint(0, 9)) for _ in range(4)])  # Example code generation
 
         # Send the code via email
         send_mail(
@@ -77,11 +77,12 @@ class VerifyEmailAPIView(APIView):
 
 class LoginAPIView(APIView):
     def post(self, request):
-        email = request.data.get('email')
+
+        username = request.data.get('username')
         password = request.data.get('password')
 
-        user = authenticate(request, username=email, password=password)
-
+        user = authenticate(request, username=username, password=password)
+        print(user)
         if user is not None:
             # Check if email is verified
             email_verification = get_object_or_404(EmailVerification, user=user)
@@ -96,3 +97,13 @@ class LoginAPIView(APIView):
             return Response({'token': token.key, 'detail': 'Login successful'}, status=status.HTTP_200_OK)
         else:
             return Response({'detail': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+class LogoutAPIView(APIView):
+    authentication_classes = [SessionAuthentication, TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # Logout the user
+        logout(request)
+        return Response({'detail': 'Logout successful'}, status=status.HTTP_200_OK)
