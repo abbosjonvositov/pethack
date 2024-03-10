@@ -21,15 +21,15 @@ class LoginSerializer(serializers.Serializer):
 
 
 class SignupSerializer(serializers.Serializer):
-    email = serializers.EmailField(
-        help_text="Email address of the user."
-    )
     username = serializers.CharField(
         help_text="Username of the user."
     )
     password = serializers.CharField(
         help_text="Password of the user.",
         write_only=True
+    )
+    email = serializers.EmailField(
+        help_text="Email address of the user."
     )
 
     def create(self, validated_data):

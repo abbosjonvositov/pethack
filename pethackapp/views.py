@@ -1,6 +1,5 @@
 # views.py
-from django.shortcuts import get_object_or_404
-from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.contrib.auth import authenticate, login, logout
 from django.core.mail import send_mail
 from drf_yasg.utils import swagger_auto_schema
@@ -10,8 +9,6 @@ from django.conf import settings
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.authtoken.models import Token
-from .models import EmailVerification
 import random
 from .serializers import *
 from django.db.utils import IntegrityError
@@ -29,23 +26,30 @@ class SignupAPIView(APIView):
         responses={status.HTTP_201_CREATED: 'Signup successful. Please verify your email.'}
     )
     def post(self, request):
-
         try:
-            email = request.data.get('email')
-            username = request.data.get('username')
-            password = request.data.get('password')
+            serializer = SignupSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            email = serializer.validated_data['email']
+            username = serializer.validated_data['username']
+            password = serializer.validated_data['password']
 
+            # Check if email, username, and password are provided
             if not email or not username or not password:
                 return Response({'detail': 'Email, username, and password are required.'},
                                 status=status.HTTP_400_BAD_REQUEST)
 
+            # Validate email and password
+            # Assuming validate_email and validate_password are custom functions
             validate_email(email)
             validate_password(password)
 
-            user = User.objects.create_user(username=username, email=email, password=password)
-
+            # Generate verification code
             code = ''.join([str(random.randint(0, 9)) for _ in range(4)])
 
+            # Save email and username to cache along with code
+            cache.set(email, {'code': code, 'username': username})
+
+            # Send verification email
             send_mail(
                 'Verification Code',
                 f'Your verification code is: {code}',
@@ -54,11 +58,7 @@ class SignupAPIView(APIView):
                 fail_silently=False,
             )
 
-            EmailVerification.objects.create(user=user, code=code)
-
-            token = Token.objects.create(user=user)
-
-            return Response({'detail': 'Signup successful. Please verify your email.', 'token': token.key},
+            return Response({'detail': 'Signup successful. Please verify your email.'},
                             status=status.HTTP_201_CREATED)
 
         except ValidationError as e:
@@ -73,37 +73,39 @@ class SignupAPIView(APIView):
 
 
 class VerifyEmailAPIView(APIView):
-    authentication_classes = [SessionAuthentication, TokenAuthentication]
-    permission_classes = [IsAuthenticated]
-
     @swagger_auto_schema(
         operation_description="Verify user's email address using verification code.",
         request_body=EmailVerificationSerializer,  # Define serializer for the request body
         responses={
             status.HTTP_200_OK: "Email verified successfully.",
-            status.HTTP_400_BAD_REQUEST: "Email and code are required. Email is already in use. Invalid verification code."
+            status.HTTP_400_BAD_REQUEST: "Invalid verification code."
         }
     )
     def post(self, request):
-        email = request.data.get('email')
-        code = request.data.get('code')
+        try:
+            serializer = EmailVerificationSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            email = serializer.validated_data['email']
+            code = serializer.validated_data['code']
 
-        if not email or not code:
-            return Response({'detail': 'Email and code are required.'}, status=status.HTTP_400_BAD_REQUEST)
+            # Retrieve verification code and username from cache
+            cached_data = cache.get(email)
 
-        users = User.objects.filter(email=email)
-        if users.count() != 1:
-            return Response({'detail': 'Email is already in use.'}, status=status.HTTP_400_BAD_REQUEST)
+            # Check if the cached data exists and the code matches
+            if cached_data and cached_data['code'] == code:
+                # Create the user if email verification is successful
+                User.objects.create_user(username=cached_data['username'], email=email)
 
-        user = users.first()
-        email_verification = get_object_or_404(EmailVerification, user=user)
+                # Remove verification code from cache
+                cache.delete(email)
 
-        if email_verification.code == code:
-            email_verification.verified = True
-            email_verification.save()
-            return Response({'detail': 'Email verified successfully.'}, status=status.HTTP_200_OK)
-        else:
-            return Response({'detail': 'Invalid verification code.'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'detail': 'Email verified successfully.'}, status=status.HTTP_200_OK)
+            else:
+                return Response({'detail': 'Invalid verification code.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({'detail': 'An error occurred while processing your request.'},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class LoginAPIView(APIView):
