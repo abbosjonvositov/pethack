@@ -179,6 +179,7 @@ class LogoutAPIView(APIView):
 
     @swagger_auto_schema(
         operation_description="Logout the authenticated user.",
+        request_body=LogoutSerializer,
         responses={status.HTTP_200_OK: "Logout successful"}
     )
     def post(self, request):

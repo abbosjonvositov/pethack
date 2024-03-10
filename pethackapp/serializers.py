@@ -44,3 +44,7 @@ class EmailVerificationSerializer(serializers.Serializer):
         max_length=4,
         help_text="Verification code sent to the user's email."
     )
+
+
+class LogoutSerializer(serializers.Serializer):
+    token = serializers.CharField(required=True, help_text="Authentication token in headers")
