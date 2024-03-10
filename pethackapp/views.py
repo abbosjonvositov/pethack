@@ -82,7 +82,7 @@ class VerifyEmailAPIView(APIView):
         operation_description="Verify user's email address using verification code.",
         request_body=EmailVerificationSerializer,
         responses={
-            status.HTTP_200_OK: "Email verified successfully.",
+            status.HTTP_200_OK: "Email verified successfully. Token returned.",
             status.HTTP_400_BAD_REQUEST: "Invalid verification code."
         }
     )
@@ -108,7 +108,11 @@ class VerifyEmailAPIView(APIView):
                 # Add entry to EmailVerification model
                 EmailVerification.objects.create(user=user, code=code, verified=True)
 
-                return Response({'detail': 'Email verified successfully.'}, status=status.HTTP_200_OK)
+                # Generate or get token
+                token, created = Token.objects.get_or_create(user=user)
+
+                return Response({'detail': 'Email verified successfully.', 'token': token.key},
+                                status=status.HTTP_200_OK)
             else:
                 return Response({'detail': 'Invalid verification code.'}, status=status.HTTP_400_BAD_REQUEST)
 
