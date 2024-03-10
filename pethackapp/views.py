@@ -12,41 +12,55 @@ from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
 from .models import EmailVerification
 import random
+from django.db.utils import IntegrityError
+from django.contrib.auth.password_validation import validate_password
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist
 
 
 class SignupAPIView(APIView):
     def post(self, request):
-        email = request.data.get('email')
-        username = request.data.get('username')
-        password = request.data.get('password')
+        try:
+            email = request.data.get('email')
+            username = request.data.get('username')
+            password = request.data.get('password')
 
-        if not email or not username or not password:
-            return Response({'detail': 'Email, username, and password are required.'},
-                            status=status.HTTP_400_BAD_REQUEST)
+            if not email or not username or not password:
+                return Response({'detail': 'Email, username, and password are required.'},
+                                status=status.HTTP_400_BAD_REQUEST)
 
-        # Create user
-        user = User.objects.create_user(username=username, email=email, password=password)
+            validate_email(email)
+            validate_password(password)
 
-        # Generate a random verification code with 4 digits
-        code = ''.join([str(random.randint(0, 9)) for _ in range(4)])  # Example code generation
+            user = User.objects.create_user(username=username, email=email, password=password)
 
-        # Send the code via email
-        send_mail(
-            'Verification Code',
-            f'Your verification code is: {code}',
-            settings.EMAIL_HOST_USER,
-            [email],
-            fail_silently=False,
-        )
+            code = ''.join([str(random.randint(0, 9)) for _ in range(4)])
 
-        # Store the verification code
-        EmailVerification.objects.create(user=user, code=code)
+            send_mail(
+                'Verification Code',
+                f'Your verification code is: {code}',
+                settings.EMAIL_HOST_USER,
+                [email],
+                fail_silently=False,
+            )
 
-        # Create token for the user
-        token = Token.objects.create(user=user)
+            EmailVerification.objects.create(user=user, code=code)
 
-        return Response({'detail': 'Signup successful. Please verify your email.', 'token': token.key},
-                        status=status.HTTP_201_CREATED)
+            token = Token.objects.create(user=user)
+
+            return Response({'detail': 'Signup successful. Please verify your email.', 'token': token.key},
+                            status=status.HTTP_201_CREATED)
+
+        except ValidationError as e:
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        except IntegrityError:
+            return Response({'detail': 'Username already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({'detail': 'An error occurred while processing your request.'},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class VerifyEmailAPIView(APIView):
@@ -77,17 +91,26 @@ class VerifyEmailAPIView(APIView):
 
 class LoginAPIView(APIView):
     def post(self, request):
+        try:
+            username = request.data.get('username')
+            password = request.data.get('password')
 
-        username = request.data.get('username')
-        password = request.data.get('password')
+            if not username or not password:
+                return Response({'detail': 'Username and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = authenticate(request, username=username, password=password)
-        print(user)
-        if user is not None:
+            user = authenticate(request, username=username, password=password)
+
+            if user is None:
+                return Response({'detail': 'Invalid username or password.'}, status=status.HTTP_401_UNAUTHORIZED)
+
             # Check if email is verified
-            email_verification = get_object_or_404(EmailVerification, user=user)
-            if not email_verification.verified:
-                return Response({'detail': 'Email not verified. Please verify your email.'},
+            try:
+                email_verification = EmailVerification.objects.get(user=user)
+                if not email_verification.verified:
+                    return Response({'detail': 'Email not verified. Please verify your email.'},
+                                    status=status.HTTP_400_BAD_REQUEST)
+            except ObjectDoesNotExist:
+                return Response({'detail': 'Email verification record not found. Please sign up again.'},
                                 status=status.HTTP_400_BAD_REQUEST)
 
             # Generate or get token
@@ -95,8 +118,10 @@ class LoginAPIView(APIView):
 
             login(request, user)
             return Response({'token': token.key, 'detail': 'Login successful'}, status=status.HTTP_200_OK)
-        else:
-            return Response({'detail': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        except Exception as e:
+            return Response({'detail': 'An error occurred while processing your request. Please try again later.'},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class LogoutAPIView(APIView):
