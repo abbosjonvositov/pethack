@@ -47,4 +47,4 @@ class EmailVerificationSerializer(serializers.Serializer):
 
 
 class LogoutSerializer(serializers.Serializer):
-    token = serializers.CharField(required=True, help_text="Authentication token in headers")
+    Authorization = serializers.CharField(required=True, help_text="Authentication token in headers")
