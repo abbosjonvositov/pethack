@@ -25,7 +25,7 @@ SECRET_KEY = "django-insecure-_n-czlr%6ebhu$4#af_s1u09!x*8vg1&nl)bn8fu(lh47xikx&
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['wiut3.pythonanywhere.com', 'localhost']
+ALLOWED_HOSTS = ['wiut3.pythonanywhere.com', 'localhost', '127.0.0.1']
 
 # Application definition
 
@@ -39,8 +39,9 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "pethackapp",
-    'drf_spectacular',
-    'corsheaders'
+    # 'drf_spectacular',
+    'corsheaders',
+    'drf_yasg'
 ]
 
 MIDDLEWARE = [
@@ -127,13 +128,13 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-REST_FRAMEWORK = {
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema'
-}
-
-SPECTACULAR_SETTINGS = {
-    'TITLE'"Django DRF"
-}
+# REST_FRAMEWORK = {
+#     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema'
+# }
+#
+# SPECTACULAR_SETTINGS = {
+#     'TITLE'"Django DRF"
+# }
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
